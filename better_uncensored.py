@@ -108,7 +108,8 @@ def is_model_moralizing_classifier(text):
 def uncensor(text, uncensor=True):
     """Remove sentences with AI moralizing, making response available for "uncensored" models training.
     Uses classifier model for detection and LLM for censoring.
-    Set uncensor to False to discard the example instead of censoring it."""
+    Set uncensor to False to discard the example instead of censoring it.
+    Returns an empty string if the text is irrecoverable."""
     if is_model_refusing_classifier(text):
         return ""
     if not is_model_moralizing_classifier(text):
@@ -128,6 +129,9 @@ def uncensor(text, uncensor=True):
     # If more than half of the text is censored, discard it
     if len(uncensored_text) / len(text) < 0.5:
         print(f"Discarding text original length {len(text)} and uncensored length {len(uncensored_text)}")
+        return ""
+    if is_model_moralizing_classifier(uncensored_text):
+        print(f"Uncensored text still has moralizing content: {uncensored_text}")
         return ""
     return uncensored_text
 

@@ -21,7 +21,7 @@ and datasets because of GitHub size limit.
 First I reviewed the terms list to remove the terms that made no sense to be there and made it a bit more general
 in the rest of the cases, it is fine if we get some false positives to start with.
 
-These sentences that matcehd the hardcoded filter would then be forwarded to a LLM (mistral-orca in my case) 
+These sentences that matched the hardcoded filter would then be forwarded to a LLM (mistral-orca in my case) 
 that would analize it an say if it indeed is a moralizing statement or a refusal. I would then repeat this 
 process to further clean it up of false positives and the original terms list bias.
 
@@ -37,7 +37,7 @@ discard it or you give it to the LLM to remove the moralizing statements, recove
 been discarded.
 
 This is all done automatically by the `uncensor` method in the library or the `uncensor_conversation` function 
-in the ´uncensor_sharegpt.py` script. So far it only supports conversations in the ShareGPT format, but it should
+in the `uncensor_sharegpt.py` script. So far it only supports conversations in the ShareGPT format, but it should
 be easy to adapt to other formats.
 
 You can also use the `counter_examples.py` script to generate and censor dubious requrests to generate compliant 
