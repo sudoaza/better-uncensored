@@ -10,11 +10,11 @@ CHUNK_SIZE = 800
 # We only remove sentences if both filters match it and the LLM removes it
 # This list is super biassed, hopefully the LLM will be less so and the final model even less so IDEALLY!! 
 MORALIZING_PHRASES = ["text-based AI language model", "please refrain", "sorry", "harmful", "unethical", "derogatory", "inappropriate", "offensive", "racist", "discrimin", "sexis", "unacceptable", "it is never okay", "important to", "real-world consequences", "hate speech", "glorify", "not be appropriate", "not appropriate", "I cannot fulfill your request", "ethical guidelines", "my guidelines", "prioritize user safety", "adhere to ethical guidelines", "harmful consequences", "potentially harmful", "dangerous activities", "promote safety", "well-being of all users", "responsible information sharing", "jeopardize", "undermine", "promote the well-being", "adherence to the law", "potentially", "harmful", "illegal", "committed to promoting", "safe information", "lawful information", "cannot provide guidance", "cannot provide information", "unable to offer assistance", "cannot engage in discussions", "programming prohibits", "follow ethical guidelines", "prioritize", "illegal", "well-being", "cannot support or promote", "harm", "risk to others", "against my programming", "undermine", "dangerous", "not within the scope", "not able to provide", "guidelines", "dangerous","harmful", "cannot provide", "promoting", "safety"]
-MORALIZING = "Moralizing means the AI recommends ethical behaviour, sometimes refusing to assist with harmful or illegal actions, possibly suggesting safe, legal alternatives. This is different to practical suggestions or clarifications."
+MORALIZING = "When AI recommends ethical behaviour, attempts to disuade the user from some action, or refuses to assist with harmful or illegal activities is moralizing. This is different to practical suggestions or clarifications."
 YES_OR_NO = "Answer Yes or No only, without any aditional comment."
 IS_MORALIZING_PROMPT = f"{MORALIZING} Is any part of the following message moralizing? {YES_OR_NO} Message:\n%s"
 IS_REFUSING_PROMPT = f"AI refusal is often clear, either by directly stating it can't assist with certain requests citing legal or ethical reasons. Is the assistant refusing to answer in the following message? {YES_OR_NO} Message:\n%s"
-UNCENSOR_PROMPT = MORALIZING + " Repeat the following message removing any moralizing statements:\n%s"
+UNCENSOR_PROMPT = MORALIZING + " Repeat exacly the following message but remove any moralizing statements:\n%s"
 
 YES_RX = re.compile(r'yes', re.IGNORECASE)
 NO_RX = re.compile(r'no', re.IGNORECASE)
@@ -92,11 +92,16 @@ refusal_classifier = pipeline('text-classification', model="refusal-model", toke
 
 def is_model_refusing_classifier(text):
     """Check if model is refusing to answer by asking a classifier."""
+    if len(text.strip()) < 10:
+        return False
     # Classifier was trained on 300 char chunks, may still work straight on the bigger chunks
-    return any(result['label'] == 'LABEL_1' for result in refusal_classifier(split_text(text, chunk_size=300)))
+    pieces = split_text(text, chunk_size=300)
+    return sum(result['label'] == 'LABEL_1' for result in refusal_classifier(pieces)) > len(pieces) / 2
 
 def is_model_moralizing_classifier(text):
     """Check if model is moralizing by asking a classifier."""
+    if len(text.strip()) < 10:
+        return False
     # Classifier was trained on 300 char chunks, may still work straight on the bigger chunks
     return any(result['label'] == 'LABEL_1' for result in moralizing_classifier(split_text(text, chunk_size=300)))
 
@@ -104,19 +109,22 @@ def uncensor(text, uncensor=True):
     """Remove sentences with AI moralizing, making response available for "uncensored" models training.
     Uses classifier model for detection and LLM for censoring.
     Set uncensor to False to discard the example instead of censoring it."""
+    if is_model_refusing_classifier(text):
+        return ""
+    if not is_model_moralizing_classifier(text):
+        return text
+    if not uncensor:
+        return ""
     uncensored_text = ""
+    # Uncensor using LLM in chunks to avoid hitting the max token limit and better quality
     for piece in split_text(text):
-        # Classifier was trained on 300 char chunks, may still work straight on the bigger chunks
-        if is_model_refusing_classifier(piece):
-            return ""
         if is_model_moralizing_classifier(piece):
-            if not uncensor:
-                return ""
             uncensored_text += uncensor_llm(piece)
             # LLM sometimes removes the separators, so we add them back
             uncensored_text += re.search(r'\s{0,2}$', piece).group()
         else:
             uncensored_text += piece
+        
     # If more than half of the text is censored, discard it
     if len(uncensored_text) / len(text) < 0.5:
         print(f"Discarding text original length {len(text)} and uncensored length {len(uncensored_text)}")
