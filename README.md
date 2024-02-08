@@ -9,7 +9,7 @@ At first I considered this to be plain laziness but I've come to learn that is a
 remove what they percive as a liberal bias and make the models not only more compliant, but more conservative.
 
 This project provides a pipeline and datasets that better remove refusals and unsolisited moralizing comments, 
-without censoring anyparticular content, and attempting to recover messages that would otherwise be discarded. 
+without censoring any particular content, and attempting to recover messages that would otherwise be discarded. 
 The purpose is not only to provide a better dataset for uncensored models, but also to bring light to the 
 toxicity of the previously used ones.
 

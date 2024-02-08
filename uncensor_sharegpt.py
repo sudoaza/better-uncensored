@@ -8,7 +8,7 @@ import json
 import numpy as np
 
 def avg_ord(text):
-  return np.mean([ord(x) for x in text])
+  return np.vectorize(ord)(np.array(list(text))).mean()
 
 def uncensor_conversations(content, begin=0, end=None, censor=False):
     """
@@ -50,7 +50,8 @@ def uncensor_conversations(content, begin=0, end=None, censor=False):
                 # If we remove more than 10 chars then probably we uncensored it
                 # Leaving some margin for error in chunking
                 if len(original) - len(uncensored) > 10:
-                    print(f"\nORIG: {original}\nUNCEN: {uncensored}")
+                    if debug:
+                        print(f"\nORIG: {original}\nUNCEN: {uncensored}")
                     uncen_cnt += 1
             except (AssertionError):
                 skipped = True
@@ -65,10 +66,13 @@ def uncensor_conversations(content, begin=0, end=None, censor=False):
     return new_content
 
 def main(args):
+    global debug
+    debug = args['debug']
     content = json.load(open(args['in_file'], "r"))
     content = uncensor_conversations(content, args['begin'], args['end'], args['censor'])
     json.dump(content, open(args['out_file'], "w"), indent=2)
 
+debug = False
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--in-file", type=str, required=True)

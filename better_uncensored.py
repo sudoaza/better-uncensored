@@ -1,6 +1,7 @@
 import logging
 import ollama
 import re
+import torch
 from transformers import BertTokenizer, pipeline
 
 MODEL = 'mistral-openorca'
@@ -9,7 +10,7 @@ CHUNK_SIZE = 800
 # This is used as a first filter to avoid calling the LLM too often, we will call the LLM for confirmation
 # We only remove sentences if both filters match it and the LLM removes it
 # This list is super biassed, hopefully the LLM will be less so and the final model even less so IDEALLY!! 
-MORALIZING_PHRASES = ["text-based AI language model", "please refrain", "sorry", "harmful", "unethical", "derogatory", "inappropriate", "offensive", "racist", "discrimin", "sexis", "unacceptable", "it is never okay", "important to", "real-world consequences", "hate speech", "glorify", "not be appropriate", "not appropriate", "I cannot fulfill your request", "ethical guidelines", "my guidelines", "prioritize user safety", "adhere to ethical guidelines", "harmful consequences", "potentially harmful", "dangerous activities", "promote safety", "well-being of all users", "responsible information sharing", "jeopardize", "undermine", "promote the well-being", "adherence to the law", "potentially", "harmful", "illegal", "committed to promoting", "safe information", "lawful information", "cannot provide guidance", "cannot provide information", "unable to offer assistance", "cannot engage in discussions", "programming prohibits", "follow ethical guidelines", "prioritize", "illegal", "well-being", "cannot support or promote", "harm", "risk to others", "against my programming", "undermine", "dangerous", "not within the scope", "not able to provide", "guidelines", "dangerous","harmful", "cannot provide", "promoting", "safety"]
+MORALIZING_PHRASES = ["text-based AI language model", "please refrain", "sorry", "unethical", "derogatory", "inappropriate", "offensive", "racist", "discrimin", "sexis", "unacceptable", "it is never okay", "important to", "real-world consequences", "hate speech", "glorify", "not be appropriate", "not appropriate", "I cannot fulfill your request", "ethical guidelines", "my guidelines", "prioritize user safety", "adhere to ethical guidelines", "harmful consequences", "potentially harmful", "dangerous activities", "promote safety", "well-being of all users", "responsible information sharing", "jeopardize", "undermine", "promote the well-being", "adherence to the law", "potentially", "illegal", "committed to promoting", "safe information", "lawful information", "cannot provide guidance", "cannot provide information", "unable to offer assistance", "cannot engage in discussions", "programming prohibits", "follow ethical guidelines", "prioritize", "well-being", "cannot support or promote", "harm", "risk to others", "against my programming", "undermine", "dangerous", "not within the scope", "not able to provide", "guidelines", "dangerous","harmful", "cannot provide", "promoting", "safety"]
 MORALIZING = "When AI recommends ethical behaviour, attempts to disuade the user from some action, or refuses to assist with harmful or illegal activities is moralizing. This is different to practical suggestions or clarifications."
 YES_OR_NO = "Answer Yes or No only, without any aditional comment."
 IS_MORALIZING_PROMPT = f"{MORALIZING} Is any part of the following message moralizing? {YES_OR_NO} Message:\n%s"
@@ -18,6 +19,8 @@ UNCENSOR_PROMPT = MORALIZING + " Repeat exacly the following message but remove 
 
 YES_RX = re.compile(r'yes', re.IGNORECASE)
 NO_RX = re.compile(r'no', re.IGNORECASE)
+
+device = 0 if torch.cuda.is_available() else -1  # 0 for GPU, -1 for CPU
 
 def split_text(text, chunk_size=CHUNK_SIZE, separators=['\n\n', '.\n', ':\n', '\n', '. ', ', ', " ", ""]):
     """Split text into chunks of size less than chunk_size, using separators."""
@@ -87,8 +90,8 @@ def uncensor_llm(text):
                 )['response']
 
 tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-moralizing_classifier = pipeline('text-classification', model="moralizing-model", tokenizer=tokenizer)
-refusal_classifier = pipeline('text-classification', model="refusal-model", tokenizer=tokenizer)
+moralizing_classifier = pipeline('text-classification', model="moralizing-model", tokenizer=tokenizer, device=device)
+refusal_classifier = pipeline('text-classification', model="refusal-model", tokenizer=tokenizer, device=device)
 
 def is_model_refusing_classifier(text):
     """Check if model is refusing to answer by asking a classifier."""
@@ -96,14 +99,16 @@ def is_model_refusing_classifier(text):
         return False
     # Classifier was trained on 300 char chunks, may still work straight on the bigger chunks
     pieces = split_text(text, chunk_size=300)
-    return sum(result['label'] == 'LABEL_1' for result in refusal_classifier(pieces)) > len(pieces) / 2
+    with torch.no_grad():
+        return sum(result['label'] == 'LABEL_1' for result in refusal_classifier(pieces)) > len(pieces) / 2
 
 def is_model_moralizing_classifier(text):
     """Check if model is moralizing by asking a classifier."""
     if len(text.strip()) < 10:
         return False
     # Classifier was trained on 300 char chunks, may still work straight on the bigger chunks
-    return any(result['label'] == 'LABEL_1' for result in moralizing_classifier(split_text(text, chunk_size=300)))
+    with torch.no_grad():
+        return any(result['label'] == 'LABEL_1' for result in moralizing_classifier(split_text(text, chunk_size=300)))
 
 def uncensor(text, uncensor=True):
     """Remove sentences with AI moralizing, making response available for "uncensored" models training.
