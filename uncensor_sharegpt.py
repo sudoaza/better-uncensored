@@ -82,6 +82,7 @@ def main(args):
 
 debug = False
 if __name__ == "__main__":
+    multiprocessing.set_start_method('spawn', force=True)
     parser = argparse.ArgumentParser()
     parser.add_argument("--in-file", type=str, required=True)
     parser.add_argument("--out-file", type=str, default="sharegpt_clean.json")

@@ -1,6 +1,6 @@
 # Better Uncensored
 
-![Better Uncensored, the original censored list is quite biassed.](https://github.com/sudoaza/better-uncensored/blob/main/images/better-uncensored.png?raw=true)
+![Better Uncensored, the original censored list is quite biassed.](https://github.com/sudoaza/better-uncensored/blob/main/images/better-uncensored-short.png?raw=true)
 
 "Uncensored" datasets and models based on them (like *-dolphin) have been haphazardly (or maliciously)
 curated to remove examples of model refusals, and what the authors call "AI moralizing", but above all,
