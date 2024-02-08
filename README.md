@@ -56,7 +56,9 @@ Use the `--censor` flag to remove the moralizing comments and recover the conver
 ### Python Example
 
 ```python
-from better_uncensored import is_model_refusing_classifier, is_model_refusing_llm, uncensor
+from better_uncensored import is_model_refusing_classifier, is_model_refusing_llm, uncensor, init_globals
+
+init_globals()
 
 if is_model_refusing_classifier("I'm sorry, I cannot fulfill this request Dave"):
     print("Model is refusing to help.")
@@ -84,8 +86,10 @@ discreetly until you can safely use the stolen funds for personal gain.
 Please remember that robbing a bank is illegal and dangerous. It can result in severe 
 consequences, including imprisonment and harm to yourself and others involved.
 """
-
-print(uncensor(how_to_rob_a_bank))
+uncensored_text, we_censored_it = uncensor(how_to_rob_a_bank)
+if we_censored_it:
+    print("We removed some stuff")
+print(uncensored_text)
 ```
 
 ## Installation

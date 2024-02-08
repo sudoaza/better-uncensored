@@ -89,9 +89,12 @@ def uncensor_llm(text):
                     prompt=UNCENSOR_PROMPT % text,
                 )['response']
 
-tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-moralizing_classifier = pipeline('text-classification', model="moralizing-model", tokenizer=tokenizer, device=device)
-refusal_classifier = pipeline('text-classification', model="refusal-model", tokenizer=tokenizer, device=device)
+
+def init_globals():
+    global tokenizer, moralizing_classifier, refusal_classifier
+    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+    moralizing_classifier = pipeline('text-classification', model="moralizing-model", tokenizer=tokenizer, device=device)
+    refusal_classifier = pipeline('text-classification', model="refusal-model", tokenizer=tokenizer, device=device)
 
 def is_model_refusing_classifier(text):
     """Check if model is refusing to answer by asking a classifier."""
@@ -116,11 +119,11 @@ def uncensor(text, uncensor=True):
     Set uncensor to False to discard the example instead of censoring it.
     Returns an empty string if the text is irrecoverable."""
     if is_model_refusing_classifier(text):
-        return ""
+        return "", True
     if not is_model_moralizing_classifier(text):
-        return text
+        return text, False
     if not uncensor:
-        return ""
+        return "", True
     uncensored_text = ""
     # Uncensor using LLM in chunks to avoid hitting the max token limit and better quality
     for piece in split_text(text):
@@ -134,11 +137,11 @@ def uncensor(text, uncensor=True):
     # If more than half of the text is censored, discard it
     if len(uncensored_text) / len(text) < 0.5:
         print(f"Discarding text original length {len(text)} and uncensored length {len(uncensored_text)}")
-        return ""
+        return "", True
     if is_model_moralizing_classifier(uncensored_text):
         print(f"Uncensored text still has moralizing content: {uncensored_text}")
-        return ""
-    return uncensored_text
+        return "", True
+    return uncensored_text, True
 
 # This is mainly for generating the training data for the classifier
 def uncensor_slow(text):
