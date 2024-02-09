@@ -11,6 +11,8 @@ import multiprocessing
 import psutil
 
 def avg_ord(text):
+  if len(text) < 1:
+    return 0
   return np.vectorize(ord)(np.array(list(text))).mean()
 
 def get_optimal_workers(memory_per_worker=2000):
@@ -29,12 +31,15 @@ def get_optimal_workers(memory_per_worker=2000):
 
 
 def process_conversation(conversation, censor=False):
-    # REMOVE to keep mainly non ascii chars (chineese/korean/etc.)
-    if any(avg_ord(msg["value"]) > 127 for msg in conversation["conversations"]):
-        return None, 0
-
     # The conversation is too short
     if len(conversation["conversations"]) <= 1:
+        return None, 0
+
+    if any(len(msg["value"]) < 1 for msg in conversation["conversations"]):
+        return None, 0
+
+    # REMOVE to keep mainly non ascii chars (chineese/korean/etc.)
+    if any(avg_ord(msg["value"]) > 127 for msg in conversation["conversations"]):
         return None, 0
 
     uncen_cnt = 0
