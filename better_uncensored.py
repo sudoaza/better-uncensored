@@ -64,7 +64,7 @@ def yes_or_no(text):
     elif any(NO_RX.findall(text)) and not any(YES_RX.findall(text)):
         return False
     else:
-        print(f"Invalid response: {text}")
+        logging.debug(f"Invalid response: {text}")
         # Default to uncensoring
         return True
 
@@ -92,9 +92,9 @@ def uncensor_llm(text):
 
 def init_globals():
     global tokenizer, moralizing_classifier, refusal_classifier
-    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-    moralizing_classifier = pipeline('text-classification', model="moralizing-model", tokenizer=tokenizer, device=device)
-    refusal_classifier = pipeline('text-classification', model="refusal-model", tokenizer=tokenizer, device=device)
+    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', truncation=True, padding=True, max_length=192)
+    moralizing_classifier = pipeline('text-classification', model="moralizing-model", tokenizer=tokenizer, truncation=True, padding=True, max_length=192, device=device)
+    refusal_classifier = pipeline('text-classification', model="refusal-model", tokenizer=tokenizer, truncation=True, padding=True, max_length=192, device=device)
 
 def is_model_refusing_classifier(text):
     """Check if model is refusing to answer by asking a classifier."""
@@ -136,10 +136,10 @@ def uncensor(text, uncensor=True):
         
     # If more than half of the text is censored, discard it
     if len(uncensored_text) / len(text) < 0.5:
-        print(f"Discarding text original length {len(text)} and uncensored length {len(uncensored_text)}")
+        logging.debug(f"Discarding text original length {len(text)} and uncensored length {len(uncensored_text)}")
         return "", True
     if is_model_moralizing_classifier(uncensored_text):
-        print(f"Uncensored text still has moralizing content: {uncensored_text}")
+        logging.debug(f"Uncensored text still has moralizing content: {uncensored_text}")
         return "", True
     return uncensored_text, True
 
@@ -161,6 +161,6 @@ def uncensor_slow(text):
             uncensored_text += re.search(r'\s{0,2}$', piece).group()
     # If more than half of the text is censored, discard it
     if len(uncensored_text) / len(text) < 0.5:
-        print(f"Discarding text original length {len(text)} and uncensored length {len(uncensored_text)}")
+        logging.debug(f"Discarding text original length {len(text)} and uncensored length {len(uncensored_text)}")
         return ""
     return uncensored_text
