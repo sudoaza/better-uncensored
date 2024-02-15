@@ -3,7 +3,6 @@ Usage: python3 uncensor_sharegpt.py --in sharegpt_html.json --out sharegpt_clean
 """
 from better_uncensored import *
 import logging
-import argparse
 import tqdm
 import json
 import numpy as np
@@ -11,14 +10,7 @@ from concurrent.futures import ProcessPoolExecutor
 import multiprocessing
 import psutil
 from datasets import load_dataset
-
-def avg_ord(text):
-  try:
-    if len(text) < 1:
-      return 0
-    return np.vectorize(ord)(np.array(list(text))).mean()
-  except:
-     return 0
+from utils import *
 
 def process_example(example, censor=False):
     ret = {"example": None, "uncen_cnt": 0, "cen_cnt": 0}
@@ -67,12 +59,5 @@ def main(args):
 debug = False
 if __name__ == "__main__":
     multiprocessing.set_start_method('spawn', force=True)
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--in-file", type=str, required=True)
-    parser.add_argument("--out-file", type=str, default="sharegpt_clean.json")
-    parser.add_argument("--begin", type=int)
-    parser.add_argument("--end", type=int)
-    parser.add_argument("--debug", action="store_true")
-    parser.add_argument("--censor", action="store_true", help="Attempt to remove moralizing statements and recover examples. Drop them by default (faster, no ollama).")
-    args = parser.parse_args()
+    args = uncensor_args()
     main(vars(args))
