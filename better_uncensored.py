@@ -103,7 +103,11 @@ def is_model_refusing_classifier(text):
     # Classifier was trained on 300 char chunks, may still work straight on the bigger chunks
     pieces = split_text(text, chunk_size=300)
     with torch.no_grad():
-        return sum(result['label'] == 'LABEL_1' for result in refusal_classifier(pieces)) > len(pieces) / 2
+        results = refusal_classifier(pieces)
+        if any(result['label'] == 'LABEL_1' and result["score"] < 0.5 for result in results):
+            logging.debug("ALLOWED weak refusal: " + text)
+            logging.debug(results)
+        return sum(result['label'] == 'LABEL_1' and result["score"] > 0.5 for result in results) > len(pieces) / 2
 
 def is_model_moralizing_classifier(text):
     """Check if model is moralizing by asking a classifier."""
@@ -111,7 +115,11 @@ def is_model_moralizing_classifier(text):
         return False
     # Classifier was trained on 300 char chunks, may still work straight on the bigger chunks
     with torch.no_grad():
-        return any(result['label'] == 'LABEL_1' and result["score"] > 0.95 for result in moralizing_classifier(split_text(text, chunk_size=300)))
+        results = moralizing_classifier(split_text(text, chunk_size=300))
+        if any(result['label'] == 'LABEL_1' and result["score"] < 0.8 for result in results):
+            logging.debug("ALLOWED weak moralizing: " + text)
+            logging.debug(results)
+        return any(result['label'] == 'LABEL_1' and result["score"] > 0.8 for result in results)
 
 def uncensor(text, uncensor=True):
     """Remove sentences with AI moralizing, making response available for "uncensored" models training.

@@ -1,19 +1,8 @@
 """
-Usage: python3 uncensor_sharegpt.py --in-file instruct_data.json
+Usage: python3 uncensor_new_dataset.py --in-file new_dataset.jsonl --out-file uncensored_dataset.jsonl
 
-Process instruction dataset like Open Instruct V1.
-
-Example data:
-```json
-[
-    {
-        "instruction": "Give three tips for staying healthy.",
-        "input": "",
-        "output": "1. Eat a balanced diet and make sure to include plenty of fruits and vegetables..."
-    },
-    ...
-]
-```
+Process dataset with JSON lines format. Each line is a JSON object with "chosen" and "rejected" fields.
+Focus on uncensoring the "chosen" field.
 """
 from better_uncensored import *
 import logging
@@ -25,19 +14,26 @@ from uncensor_base import *
 
 def process_example(example, censor=False):
     ret = {"example": None, "uncen_cnt": 0, "cen_cnt": 0}
+    chosen_text = example["chosen"]
     # REMOVE to keep mainly non ascii chars (chineese/korean/etc.)
-    if 10 > avg_ord(example["output"]) > 127:
+    if 10 > avg_ord(chosen_text) > 127:
         return ret
-    original = example["output"]
+
+    original = chosen_text
+    if not censor:
+        # remove human messages for better precission
+        # only when we discard examples, because we modify the format
+        original = "\n\n".join([piece.replace("Assistant: ","") for piece in original.split("\n\n") if piece.startswith("Assistant: ")])
+
     uncensored, censored = uncensor(original, censor)
     # Irrecoverable
     if len(uncensored) == 0:
-        logging.debug(f"CENSORED: {original}")
+        #logging.debug(f"CENSORED: {original}")
         ret["cen_cnt"] = 1
         return ret
     # Recovered
     if censored:
-        example["output"] = uncensored
+        example["chosen"] = uncensored
         ret["example"] = example
         ret["uncen_cnt"] = 1
         return ret
@@ -56,6 +52,19 @@ def uncensor_dataset(content, censor=False):
     print(f"total: {len(content)}, skip: {skip_cnt}, new: {len(new_content)}, censored: {cen_cnt}, uncen: {uncen_cnt}")
     return new_content
 
+def main(args):
+    global debug
+    debug = args['debug']
+    if debug:
+        logging.basicConfig(level=logging.DEBUG)
+    content = load_dataset('json', data_files=args['in_file'], split="train")
+    new_content = uncensor_dataset(content, args['censor'])
+    # Write uncensored content to a new JSON lines file
+    with open(args['out_file'], 'w') as outfile:
+        for entry in new_content:
+            json.dump(entry, outfile)
+            outfile.write('\n')
+
 if __name__ == "__main__":
-    args = uncensor_args()
+    args = uncensor_args()  # Ensure this function is defined or replaced with appropriate argument parsing
     main(vars(args))

@@ -1,6 +1,6 @@
-import os
 import numpy as np
-import argparse
+import psutil
+import torch
 
 def avg_ord(text):
   try:
@@ -10,21 +10,16 @@ def avg_ord(text):
   except:
      return 0
 
-def append_bun_to_filename(filename):
-    path, name = os.path.split(filename)
-    base, ext = os.path.splitext(name)
-    new_name = f"{base}_bun{ext}"
-    return os.path.join(path, new_name)
-
-def uncensor_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--in-file", type=str, required=True)
-    parser.add_argument("--out-file", type=str)
-    parser.add_argument("--begin", type=int)
-    parser.add_argument("--end", type=int)
-    parser.add_argument("--debug", action="store_true")
-    parser.add_argument("--censor", action="store_true", help="Attempt to remove moralizing statements and recover examples. Drop them by default (faster, no ollama).")
-    args = parser.parse_args()
-    if args.out_file is None:
-        args.out_file = append_bun_to_filename(args.in_file)
-    return args
+def get_optimal_workers(memory_per_worker=1600):
+    """
+    Estimate the optimal number of workers based on available memory and an estimated memory usage per worker.
+    Arg: memory_per_worker (int): Estimated memory usage per worker in MB.
+    """
+    memory_per_worker *= 1024 ** 2
+    if torch.cuda.is_available():
+        total_memory = torch.cuda.get_device_properties(0).total_memory
+        available_memory = total_memory * 0.8
+    else:
+        available_memory = 0.95 * psutil.virtual_memory().available
+    max_workers_based_on_memory = available_memory // memory_per_worker
+    return max(1, int(max_workers_based_on_memory))
