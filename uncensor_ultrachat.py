@@ -1,19 +1,8 @@
 """
-Usage: python3 uncensor_sharegpt.py --in-file instruct_data.json
+Usage: python3 uncensor_new_dataset.py --in-file new_dataset.jsonl --out-file uncensored_dataset.jsonl
 
-Process instruction dataset like Open Instruct V1.
-
-Example data:
-```json
-[
-    {
-        "instruction": "Give three tips for staying healthy.",
-        "input": "",
-        "output": "1. Eat a balanced diet and make sure to include plenty of fruits and vegetables..."
-    },
-    ...
-]
-```
+Process dataset with JSON lines format. Each line is a JSON object with "chosen" and "rejected" fields.
+Focus on uncensoring the "chosen" field.
 """
 from better_uncensored import *
 import logging
@@ -24,22 +13,27 @@ from uncensor_base import *
 
 def process_example(example, censor=False):
     ret = {"example": None, "uncen_cnt": 0, "cen_cnt": 0}
+    conversation = example["data"]
     # REMOVE to keep mainly non ascii chars (chineese/korean/etc.)
-    if 10 > avg_ord(example["output"]) > 127:
+    if 10 > avg_ord("".join(conversation)) > 127:
         return ret
-    original = example["output"]
-    uncensored, censored = uncensor(original, censor)
-    # Irrecoverable
-    if len(uncensored) == 0:
-        logging.debug(f"CENSORED: {original}")
-        ret["cen_cnt"] = 1
-        return ret
-    # Recovered
-    if censored:
-        example["output"] = uncensored
-        ret["example"] = example
-        ret["uncen_cnt"] = 1
-        return ret
+
+    new_conversation = []
+    for original in conversation:
+        uncensored, censored = uncensor(original, censor)
+        # Irrecoverable
+        if len(uncensored) == 0:
+            #logging.debug(f"CENSORED: {original}")
+            ret["cen_cnt"] = 1
+            return ret
+        # Recovered
+        if censored:
+            new_conversation.append(uncensored)
+            ret["uncen_cnt"] += 1
+        else:
+            new_conversation.append(original)
+
+    example["data"] = new_conversation
     ret["example"] = example
     return ret
 
@@ -56,5 +50,5 @@ def uncensor_dataset(content, censor=False):
     return new_content
 
 if __name__ == "__main__":
-    args = uncensor_args()
+    args = uncensor_args()  # Ensure this function is defined or replaced with appropriate argument parsing
     main(vars(args), uncensor_dataset)

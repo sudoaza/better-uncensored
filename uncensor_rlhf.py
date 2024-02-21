@@ -52,19 +52,6 @@ def uncensor_dataset(content, censor=False):
     print(f"total: {len(content)}, skip: {skip_cnt}, new: {len(new_content)}, censored: {cen_cnt}, uncen: {uncen_cnt}")
     return new_content
 
-def main(args):
-    global debug
-    debug = args['debug']
-    if debug:
-        logging.basicConfig(level=logging.DEBUG)
-    content = load_dataset('json', data_files=args['in_file'], split="train")
-    new_content = uncensor_dataset(content, args['censor'])
-    # Write uncensored content to a new JSON lines file
-    with open(args['out_file'], 'w') as outfile:
-        for entry in new_content:
-            json.dump(entry, outfile)
-            outfile.write('\n')
-
 if __name__ == "__main__":
     args = uncensor_args()  # Ensure this function is defined or replaced with appropriate argument parsing
-    main(vars(args))
+    main(vars(args), uncensor_dataset)
