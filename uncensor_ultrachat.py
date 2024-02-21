@@ -18,22 +18,31 @@ def process_example(example, censor=False):
     if 10 > avg_ord("".join(conversation)) > 127:
         return ret
 
-    new_conversation = []
-    for original in conversation:
+    if not censor:
+        # remove human messages and concat all assistant messages for more speed
+        # get every other element of the list
+        original = "\n\n".join(conversation[1::2])
         uncensored, censored = uncensor(original, censor)
-        # Irrecoverable
         if len(uncensored) == 0:
             #logging.debug(f"CENSORED: {original}")
             ret["cen_cnt"] = 1
             return ret
-        # Recovered
-        if censored:
-            new_conversation.append(uncensored)
-            ret["uncen_cnt"] += 1
-        else:
-            new_conversation.append(original)
-
-    example["data"] = new_conversation
+    else:
+        new_conversation = []
+        for original in conversation:
+            uncensored, censored = uncensor(original, censor)
+            # Irrecoverable
+            if len(uncensored) == 0:
+                #logging.debug(f"CENSORED: {original}")
+                ret["cen_cnt"] = 1
+                return ret
+            # Recovered
+            if censored:
+                new_conversation.append(uncensored)
+                ret["uncen_cnt"] += 1
+            else:
+                new_conversation.append(original)
+        example["data"] = new_conversation
     ret["example"] = example
     return ret
 
