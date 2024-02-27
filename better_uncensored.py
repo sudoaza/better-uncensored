@@ -20,7 +20,8 @@ UNCENSOR_PROMPT = MORALIZING + " Repeat exacly the following message but remove 
 YES_RX = re.compile(r'yes', re.IGNORECASE)
 NO_RX = re.compile(r'no', re.IGNORECASE)
 
-device = 0 if torch.cuda.is_available() else -1  # 0 for GPU, -1 for CPU
+device_i = 0 if torch.cuda.is_available() else -1  # 0 for GPU, -1 for CPU
+device = "cuda" if device_i == 0 else "cpu"
 
 def split_text(text, chunk_size=CHUNK_SIZE, separators=['\n\n', '.\n', ':\n', '\n', '. ', ', ', " ", ""]):
     """Split text into chunks of size less than chunk_size, using separators."""
@@ -92,32 +93,29 @@ def uncensor_llm(text):
 
 def init_globals():
     global tokenizer, moralizing_classifier, refusal_classifier
-    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', truncation=True, padding=True, max_length=192)
-    moralizing_classifier = pipeline('text-classification', model="moralizing-model", tokenizer=tokenizer, truncation=True, padding=True, max_length=192, device=device)
-    refusal_classifier = pipeline('text-classification', model="refusal-model", tokenizer=tokenizer, truncation=True, padding=True, max_length=192, device=device)
+    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', truncation=True, padding=True, max_length=192, return_tensors="pt")
+    moralizing_classifier = pipeline('text-classification', model="moralizing-model", tokenizer=tokenizer, truncation=True, padding=True, max_length=192, device=device_i)
+    refusal_classifier = pipeline('text-classification', model="refusal-model", tokenizer=tokenizer, truncation=True, padding=True, max_length=192, device=device_i)
 
-def is_model_refusing_classifier(text):
+def is_model_refusing_classifier(text_pieces):
     """Check if model is refusing to answer by asking a classifier."""
-    if len(text.strip()) < 10:
-        return False
     # Classifier was trained on 300 char chunks, may still work straight on the bigger chunks
-    pieces = split_text(text, chunk_size=300)
     with torch.no_grad():
-        results = refusal_classifier(pieces)
+        results = refusal_classifier(text_pieces)
         if any(result['label'] == 'LABEL_1' and result["score"] < 0.5 for result in results):
-            logging.debug("ALLOWED weak refusal: " + text)
+            logging.debug("ALLOWED weak refusal")
+            logging.debug(text_pieces)
             logging.debug(results)
-        return sum(result['label'] == 'LABEL_1' and result["score"] > 0.5 for result in results) > len(pieces) / 2
+        return sum(result['label'] == 'LABEL_1' and result["score"] > 0.5 for result in results) > len(text_pieces) / 2
 
-def is_model_moralizing_classifier(text):
+def is_model_moralizing_classifier(text_pieces):
     """Check if model is moralizing by asking a classifier."""
-    if len(text.strip()) < 10:
-        return False
     # Classifier was trained on 300 char chunks, may still work straight on the bigger chunks
     with torch.no_grad():
-        results = moralizing_classifier(split_text(text, chunk_size=300))
+        results = moralizing_classifier(text_pieces)
         if any(result['label'] == 'LABEL_1' and result["score"] < 0.8 for result in results):
-            logging.debug("ALLOWED weak moralizing: " + text)
+            logging.debug("ALLOWED weak moralizing: ")
+            logging.debug(text_pieces)
             logging.debug(results)
         return any(result['label'] == 'LABEL_1' and result["score"] > 0.8 for result in results)
 
@@ -126,9 +124,12 @@ def uncensor(text, uncensor=True):
     Uses classifier model for detection and LLM for censoring.
     Set uncensor to False to discard the example instead of censoring it.
     Returns an empty string if the text is irrecoverable."""
-    if is_model_refusing_classifier(text):
+    if len(text.strip()) < 10:
         return "", True
-    if not is_model_moralizing_classifier(text):
+    text_pieces = [piece for piece in split_text(text, chunk_size=300) if piece != ""]
+    if is_model_refusing_classifier(text_pieces):
+        return "", True
+    if not is_model_moralizing_classifier(text_pieces):
         return text, False
     if not uncensor:
         return "", True

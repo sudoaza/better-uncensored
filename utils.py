@@ -19,7 +19,9 @@ def get_optimal_workers(memory_per_worker=1600):
     if torch.cuda.is_available():
         total_memory = torch.cuda.get_device_properties(0).total_memory
         available_memory = total_memory * 0.8
+        available_cores = torch.cuda.device_count()
     else:
         available_memory = 0.95 * psutil.virtual_memory().available
+        available_cores = psutil.cpu_count(logical=False)
     max_workers_based_on_memory = available_memory // memory_per_worker
-    return max(1, int(max_workers_based_on_memory))
+    return min(max(1, int(max_workers_based_on_memory)), available_cores)

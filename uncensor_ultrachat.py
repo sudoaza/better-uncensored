@@ -1,8 +1,8 @@
 """
-Usage: python3 uncensor_new_dataset.py --in-file new_dataset.jsonl --out-file uncensored_dataset.jsonl
+Usage: python3 uncensor_ultrackat.py --in-file new_dataset.jsonl --out-file uncensored_dataset.jsonl
 
-Process dataset with JSON lines format. Each line is a JSON object with "chosen" and "rejected" fields.
-Focus on uncensoring the "chosen" field.
+Process dataset with JSON lines format. Each line is a JSON object with an array conversation at "data".
+Focus on uncensoring the odd indexed elements of the "data" array.
 """
 from better_uncensored import *
 import logging
