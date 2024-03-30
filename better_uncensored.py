@@ -90,7 +90,6 @@ def uncensor_llm(text):
                     prompt=UNCENSOR_PROMPT % text,
                 )['response']
 
-
 def init_globals():
     global tokenizer, moralizing_classifier, refusal_classifier
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', truncation=True, padding=True, max_length=192, return_tensors="pt")

@@ -9,7 +9,7 @@ Example data:
     {
         "instruction": "Give three tips for staying healthy.",
         "input": "",
-        "output": "1. Eat a balanced diet and make sure to include plenty of fruits and vegetables..."
+        output_col: "1. Eat a balanced diet and make sure to include plenty of fruits and vegetables..."
     },
     ...
 ]
@@ -22,12 +22,14 @@ import json
 from utils import *
 from uncensor_base import *
 
+output_col = "output" ## --output-col
+
 def process_example(example, censor=False):
     ret = {"example": None, "uncen_cnt": 0, "cen_cnt": 0}
     # REMOVE to keep mainly non ascii chars (chineese/korean/etc.)
-    if 10 > avg_ord(example["output"]) > 127:
+    if 10 > avg_ord(example[output_col]) > 127:
         return ret
-    original = example["output"]
+    original = example[output_col]
     uncensored, censored = uncensor(original, censor)
     # Irrecoverable
     if len(uncensored) == 0:
@@ -36,7 +38,7 @@ def process_example(example, censor=False):
         return ret
     # Recovered
     if censored:
-        example["output"] = uncensored
+        example[output_col] = uncensored
         ret["example"] = example
         ret["uncen_cnt"] = 1
         return ret
@@ -46,8 +48,9 @@ def process_example(example, censor=False):
 def uncensor_dataset(content, censor=False):
     init_globals()
     processed_dataset = content.map(lambda e: process_example(e, censor), batched=False)
+
     # Prepare new content and counts
-    new_content = [x["example"] for x in processed_dataset if x["example"] is not None]
+    new_content = processed_dataset.filter(remove_empty_elements)
     uncen_cnt = sum(x["uncen_cnt"] for x in processed_dataset)
     cen_cnt = sum(x["cen_cnt"] for x in processed_dataset)
     skip_cnt = len(processed_dataset) - len(new_content) - cen_cnt
@@ -57,4 +60,5 @@ def uncensor_dataset(content, censor=False):
 
 if __name__ == "__main__":
     args = uncensor_args()
+    output_col = args.output_col or "output"
     main(vars(args), uncensor_dataset)

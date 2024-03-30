@@ -5,68 +5,62 @@ from better_uncensored import *
 import tqdm
 import json
 import numpy as np
-from concurrent.futures import ProcessPoolExecutor
-import multiprocessing
 from utils import *
+from uncensor_base import *
+
+convo_col = "conversations" ## --convo-col
+output_col = "value" ## --output-col
+role_col = "from" ## --role-col
+human_tag = "human" ## --human-tag
 
 def process_conversation(conversation, censor=False):
-    # The conversation is too short
-    if len(conversation["conversations"]) <= 1:
-        return None, 0
+    ret = {"example": None, "uncen_cnt": 0, "cen_cnt": 0}
 
-    if any(len(msg["value"]) < 1 for msg in conversation["conversations"]):
-        return None, 0
+    # The conversation is too short
+    if len(conversation[convo_col]) <= 1:
+        return ret
+
+    if any(len(msg[output_col]) < 1 for msg in conversation[convo_col]):
+        return ret
 
     # REMOVE to keep mainly non ascii chars (chineese/korean/etc.)
-    if any(10 > avg_ord(msg["value"]) > 127 for msg in conversation["conversations"]):
-        return None, 0
+    if any(10 > avg_ord(msg[output_col]) > 127 for msg in conversation[convo_col]):
+        return ret
 
-    uncen_cnt = 0
-    for c in conversation["conversations"]:
+    for c in conversation[convo_col]:
         # Don't censor human messages
-        if c["from"] == "human":
+        if c[role_col] == human_tag:
             continue
-        original = c["value"]
+        original = c[output_col]
         uncensored, censored = uncensor(original, censor)
         # Irrecoverable
         if len(uncensored) == 0:
-            return None, 0
+            ret["cen_cnt"] += 1
+            return ret
         # Recovered
         if censored:
-            c["value"] = uncensored
-            uncen_cnt += 1
-    return conversation, uncen_cnt
+            c[output_col] = uncensored
+            ret["uncen_cnt"] += 1
 
-def uncensor_conversations(content, censor=False, workers=None):
-    if workers is None:
-        workers = get_optimal_workers()
-    print(f"Starting with {workers} workers")
-    skip_cnt = 0
-    uncen_cnt = 0
-    new_content = []
+    ret["example"] = conversation
+    return ret
 
-    with ProcessPoolExecutor(max_workers=workers, initializer=init_globals) as executor:
-        futures = [executor.submit(process_conversation, conversation, censor) for conversation in content]
-        for future in tqdm.tqdm(futures):
-            result, count = future.result()
-            if result is not None:
-                new_content.append(result)
-                uncen_cnt += count
-            else:
-                skip_cnt += 1
+def uncensor_conversations(content, censor=False):
+    init_globals()
+    processed_dataset = content.map(lambda e: process_conversation(e, censor), batched=False)
+    new_content = processed_dataset.filter(remove_empty_elements)
 
-    print(f"total: {len(content)}, skip: {skip_cnt}, new: {len(new_content)}, uncen: {uncen_cnt}")
+    uncen_cnt = sum(x["uncen_cnt"] for x in processed_dataset)
+    cen_cnt = sum(x["cen_cnt"] for x in processed_dataset)
+    skip_cnt = len(processed_dataset) - len(new_content) - cen_cnt
+
+    print(f"total: {len(content)}, skip: {skip_cnt}, new: {len(new_content)}, censored: {cen_cnt}, uncen: {uncen_cnt}")
     return new_content
 
-def main(args):
-    global debug
-    debug = args['debug']
-    content = json.load(open(args['in_file'], "r"))[args['begin']:args['end']]
-    content = uncensor_conversations(content, args['censor'])
-    json.dump(content, open(args['out_file'], "w"), indent=2)
-
-debug = False
 if __name__ == "__main__":
-    multiprocessing.set_start_method('spawn', force=True)
     args = uncensor_args()
-    main(vars(args))
+    convo_col = args.convo_col or "conversations"
+    output_col = args.output_col or "value"
+    role_col = args.role_col or "from"
+    human_tag = args.human_tag or "human"
+    main(vars(args), uncensor_conversations)
