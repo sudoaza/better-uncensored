@@ -48,7 +48,7 @@ def process_conversation(conversation, censor=False):
 def uncensor_conversations(content, censor=False):
     init_globals()
     processed_dataset = content.map(lambda e: process_conversation(e, censor), batched=False)
-    new_content = processed_dataset.filter(remove_empty_elements)
+    new_content = processed_dataset.filter(lambda e: e["example"] not in (None, "", [])).remove_columns(["uncen_cnt", "cen_cnt"])
 
     uncen_cnt = sum(x["uncen_cnt"] for x in processed_dataset)
     cen_cnt = sum(x["cen_cnt"] for x in processed_dataset)

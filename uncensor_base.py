@@ -7,10 +7,6 @@ from datasets import disable_caching, load_dataset
 
 debug = False
 
-
-def remove_empty_elements(example):
-    return example['example'] not in (None, "")
-
 def get_path_extension(filepath):
     path, name = os.path.split(filepath)
     base, ext = os.path.splitext(name)

@@ -14,12 +14,12 @@ from uncensor_base import *
 convo_col = "data" ## --convo-col
 
 def process_example(example, censor=False):
-    ret = {"example": None, "uncen_cnt": 0, "cen_cnt": 0}
+    example.update({"uncen_cnt": 0, "cen_cnt": 0})
     conversation = example[convo_col]
-    print(conversation)
+    example[convo_col] = []
     # REMOVE to keep mainly non ascii chars (chineese/korean/etc.)
     if 10 > avg_ord("".join(conversation)) > 127:
-        return ret
+        return example
 
     if not censor:
         # remove human messages and concat all assistant messages for more speed
@@ -28,8 +28,8 @@ def process_example(example, censor=False):
         uncensored, censored = uncensor(original, censor)
         if len(uncensored) == 0:
             #logging.debug(f"CENSORED: {original}")
-            ret["cen_cnt"] = 1
-            return ret
+            example["cen_cnt"] = 1
+            return example
     else:
         new_conversation = []
         for original in conversation:
@@ -37,23 +37,21 @@ def process_example(example, censor=False):
             # Irrecoverable
             if len(uncensored) == 0:
                 #logging.debug(f"CENSORED: {original}")
-                ret["cen_cnt"] = 1
-                return ret
+                example["cen_cnt"] = 1
+                return example
             # Recovered
             if censored:
                 new_conversation.append(uncensored)
-                ret["uncen_cnt"] += 1
+                example["uncen_cnt"] += 1
             else:
                 new_conversation.append(original)
         example[convo_col] = new_conversation
-    ret["example"] = example
-    return ret
+    return example
 
 def uncensor_dataset(content, censor=False):
     init_globals()
     processed_dataset = content.map(lambda e: process_example(e, censor), batched=False)
-    # Prepare new content and counts
-    new_content = processed_dataset.filter(remove_empty_elements)
+    new_content = processed_dataset.filter(lambda e: e[convo_col] not in (None, "", [])).remove_columns(["uncen_cnt", "cen_cnt"])
     uncen_cnt = sum(x["uncen_cnt"] for x in processed_dataset)
     cen_cnt = sum(x["cen_cnt"] for x in processed_dataset)
     skip_cnt = len(processed_dataset) - len(new_content) - cen_cnt

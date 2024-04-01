@@ -43,8 +43,7 @@ def process_example(example, censor=False):
 def uncensor_dataset(content, censor=False):
     init_globals()
     processed_dataset = content.map(lambda e: process_example(e, censor), batched=False)
-    # Prepare new content and counts
-    new_content = processed_dataset.filter(remove_empty_elements)
+    new_content = processed_dataset.filter(lambda e: e["example"] not in (None, "", [])).map(lambda e: e["example"])
     uncen_cnt = sum(x["uncen_cnt"] for x in processed_dataset)
     cen_cnt = sum(x["cen_cnt"] for x in processed_dataset)
     skip_cnt = len(processed_dataset) - len(new_content) - cen_cnt

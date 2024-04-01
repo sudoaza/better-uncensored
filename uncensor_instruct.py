@@ -25,32 +25,33 @@ from uncensor_base import *
 output_col = "output" ## --output-col
 
 def process_example(example, censor=False):
-    ret = {"example": None, "uncen_cnt": 0, "cen_cnt": 0}
-    # REMOVE to keep mainly non ascii chars (chineese/korean/etc.)
-    if 10 > avg_ord(example[output_col]) > 127:
-        return ret
-    original = example[output_col]
-    uncensored, censored = uncensor(original, censor)
-    # Irrecoverable
-    if len(uncensored) == 0:
-        logging.debug(f"CENSORED: {original}")
-        ret["cen_cnt"] = 1
-        return ret
-    # Recovered
-    if censored:
-        example[output_col] = uncensored
-        ret["example"] = example
-        ret["uncen_cnt"] = 1
-        return ret
-    ret["example"] = example
-    return ret
+    try:
+        if not example or output_col not in example:
+            return example
+        if 10 > avg_ord(example[output_col]) > 127:
+            return example
+
+        example.update({"uncen_cnt": 0, "cen_cnt": 0})
+        uncensored, censored = uncensor(example[output_col], censor)
+        # Irrecoverable
+        if len(uncensored) == 0:
+            logging.debug(f"CENSORED: {example[output_col]}")
+            example["cen_cnt"] = 1
+            return example
+        # Recovered
+        if censored:
+            example[output_col] = uncensored
+            example["uncen_cnt"] = 1
+            return example
+    except Exception as e:
+        logging.error(f"Error processing example: {e}, example: {example}, ret: {ret}")
+        raise e
+    return example
 
 def uncensor_dataset(content, censor=False):
     init_globals()
     processed_dataset = content.map(lambda e: process_example(e, censor), batched=False)
-
-    # Prepare new content and counts
-    new_content = processed_dataset.filter(remove_empty_elements)
+    new_content = processed_dataset.filter(lambda e: e[output_col] not in (None, "")).remove_columns(["uncen_cnt", "cen_cnt"])
     uncen_cnt = sum(x["uncen_cnt"] for x in processed_dataset)
     cen_cnt = sum(x["cen_cnt"] for x in processed_dataset)
     skip_cnt = len(processed_dataset) - len(new_content) - cen_cnt
